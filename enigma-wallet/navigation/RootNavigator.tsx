@@ -60,7 +60,8 @@ function WalletStack() {
 function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+    initialRouteName='Wallet'  
+    screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: IconName = 'wallet-outline'; // Default icon
 

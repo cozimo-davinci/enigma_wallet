@@ -1,6 +1,8 @@
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 
 interface ButtonProps {
   iconName: string;
@@ -9,64 +11,109 @@ interface ButtonProps {
 }
 
 const BalanceCard = () => {
+  const [addresses, setAddresses] = useState<{ ethereum: string; bitcoin: string; solana: string } | null>(null);
+  const [selectedNetwork, setSelectedNetwork] = useState<'ethereum' | 'bitcoin' | 'solana'>('ethereum');
+  const [balance, setBalance] = useState<number>(0); // Mock balance; replace with API data later
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      try {
+        const storedAddresses = await AsyncStorage.getItem('walletAddresses');
+        if (storedAddresses) {
+          setAddresses(JSON.parse(storedAddresses));
+        }
+      } catch (error) {
+        console.error('Error loading addresses:', error);
+      }
+    };
+    loadAddresses();
+  }, []);
+
+  const copyToClipboard = async (address: string) => {
+    await Clipboard.setStringAsync(address);
+    Alert.alert('Copied', 'Address copied to clipboard');
+  };
+
   const buttons: ButtonProps[] = [
     { iconName: 'add', title: 'Deposit', onPress: () => console.log('Deposit pressed') },
     { iconName: 'cash', title: 'Earn', onPress: () => console.log('Earn pressed') },
     { iconName: 'share-social', title: 'Referral', onPress: () => console.log('Referral pressed') },
   ];
 
-  // Mock data for the card (replace with real data if available)
-  const token = {
-    logo: 'logo-bitcoin', // Placeholder Ionicons name, replace with actual token icon
-    name: 'Bitcoin',
-    price: 103000,
-    change: 115.5,
-    pnl: 112,
-    balance: 152.687,
+  const networkNames = {
+    ethereum: 'Ethereum',
+    bitcoin: 'Bitcoin',
+    solana: 'Solana',
   };
 
-  const renderChart = () => {
-    return (
-      <View style={styles.chartContainer}>
-        {/* Simple line representation using View borders */}
-        <View style={styles.chartLine} />
-      </View>
-    );
+  const networkOptions = [
+    { label: 'Ethereum', value: 'ethereum' },
+    { label: 'Bitcoin', value: 'bitcoin' },
+    { label: 'Solana', value: 'solana' },
+  ];
+
+  const selectedAddress = addresses ? addresses[selectedNetwork] : 'Loading...';
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
+  const selectNetwork = (value: 'ethereum' | 'bitcoin' | 'solana') => {
+    setSelectedNetwork(value);
+    setIsDropdownOpen(false);
   };
 
   return (
     <View>
       <View style={styles.balanceCard}>
-        {/* Top-left avatar */}
+        {/* Dropdown */}
+        <View style={styles.dropdownWrapper}>
+          <TouchableOpacity style={styles.dropdownContainer} onPress={toggleDropdown}>
+            <Text style={styles.dropdownText}>{networkNames[selectedNetwork]}</Text>
+            <Ionicons
+              name={isDropdownOpen ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color="white"
+            />
+          </TouchableOpacity>
+          {isDropdownOpen && (
+            <View style={styles.dropdownList}>
+              {networkOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={styles.dropdownItem}
+                  onPress={() => selectNetwork(option.value as 'ethereum' | 'bitcoin' | 'solana')}
+                >
+                  <Text style={styles.dropdownItemText}>{option.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Avatar */}
         <View style={styles.avatarContainer}>
           <TouchableOpacity>
-          <Ionicons name="person" size={30} color="#1A1A1A" />
+            <Ionicons name="person" size={30} color="#1A1A1A" />
           </TouchableOpacity>
         </View>
 
-        {/* Bitcoin logo, name, and price */}
-        <View style={styles.mainSection}>
-          <View style={styles.tokenRow}>
-            <View style={styles.iconContainer}>
-              <Ionicons name={token.logo as any} size={24} color="#00FF83" />
-            </View>
-            <View style={styles.textContainer}>
-              <Text style={styles.tokenName}>{token.name}</Text>
-              <Text style={styles.priceText}>${token.price.toLocaleString()}</Text>
-            </View>
-          </View>
-
-          {/* PNL and Balance column */}
-          <View style={styles.statsColumn}>
-            <Text style={styles.changeText}>PNL: {token.pnl}%</Text>
-            <Text style={styles.changeText}>Balance: ${token.balance.toLocaleString()}</Text>
-          </View>
+        {/* Address Row */}
+        <View style={styles.addressRow}>
+          <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="middle">
+            {selectedAddress}
+          </Text>
+          <TouchableOpacity onPress={() => copyToClipboard(selectedAddress)}>
+            <Ionicons name="copy-outline" size={20} color="white" style={{ backgroundColor: '#1A1A1A', padding: 5, borderRadius: 10 }} />
+          </TouchableOpacity>
         </View>
 
-        {/* Right section with change and chart */}
-        <View style={styles.rightSection}>
-          <Text style={[styles.changeText, { color: '#00FF83' }]}>+{token.change}%</Text>
-          {renderChart()}
+        {/* Balance */}
+        <View style={styles.balanceContainer}>
+          <Text style={styles.balanceText}>
+            Balance: {balance} {networkNames[selectedNetwork]}
+          </Text>
         </View>
       </View>
 
@@ -100,83 +147,89 @@ const styles = StyleSheet.create({
     padding: 20,
     margin: 10,
     width: '100%',
-    height: 180,
+    height: 'auto',
     alignSelf: 'center',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  dropdownWrapper: {
+    width: '50%',
+    marginBottom: 15,
+    alignItems: 'center'
+  },
+  dropdownContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+    padding: 10,
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    minWidth: 200,
+  },
+  dropdownText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: 45,
+    left: 0,
+    right: 0,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#444444',
+    zIndex: 1000,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    minWidth: 180,
+  },
+  dropdownItem: {
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#444444',
+  },
+  dropdownItemText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   avatarContainer: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#3b403d',
+    backgroundColor: 'white',
+    borderColor: 'black',
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
-    marginLeft: -3,
-    marginTop: -10
+    marginBottom: 5,
+    alignSelf: 'flex-start'
   },
-  mainSection: {
-    flex: 1,
-    flexDirection: 'column',
-    marginTop: 40
-  },
-  tokenRow: {
+  addressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
-  },
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 5,
-    backgroundColor: '#3b403d',
-  },
-  textContainer: {
-    marginLeft: 10,
-  },
-  tokenName: {
-    color: '#1A1A1A',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  priceText: {
-    color: '#1A1A1A',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  statsColumn: {
-    flexDirection: 'column',
-  },
-  rightSection: {
-    alignItems: 'flex-end',
-  },
-  changeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
     marginBottom: 5,
+    width: '100%',
   },
-  chartContainer: {
-    width: 80,
-    height: 40,
-    backgroundColor: 'transparent',
-    justifyContent: 'center',
+  addressText: {
+    flex: 1,
+    color: '#1A1A1A',
+    fontSize: 14,
+    marginRight: 10,
+  },
+  balanceContainer: {
+    width: '100%',
     alignItems: 'center',
   },
-  chartLine: {
-    width: '100%',
-    height: 2,
-    backgroundColor: '#1A1A1A',
-    borderRadius: 1,
-    position: 'absolute',
-    borderStyle: 'solid',
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
-    transform: [{ rotate: '10deg' }, { translateX: 20 }],
+  balanceText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -203,5 +256,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
     textAlign: 'center',
+  },
+  iconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 5,
+    backgroundColor: '#3b403d',
   },
 });

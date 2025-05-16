@@ -38,17 +38,7 @@ export default function WalletScreen() {
           <Text style={styles.title} onPress={clearAsyncStorage}>Clear AsyncStorage</Text>
         </TouchableOpacity>
         <View style={styles.contentWrapper}>
-          <Text style={styles.title}>Your Addresses</Text>
-          {addresses && (
-            <View style={styles.addressContainer}>
-              <Text style={styles.addressLabel}>Ethereum Address:</Text>
-              <Text style={styles.addressText}>{addresses.ethereum}</Text>
-              <Text style={styles.addressLabel}>Bitcoin Address:</Text>
-              <Text style={styles.addressText}>{addresses.bitcoin}</Text>
-              <Text style={styles.addressLabel}>Solana Address:</Text>
-              <Text style={styles.addressText}>{addresses.solana}</Text>
-            </View>
-          )}
+         
           <BalanceCard />
           <CryptoAssetsPrices />
         </View>
