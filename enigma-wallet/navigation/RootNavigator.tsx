@@ -1,0 +1,177 @@
+import * as React from 'react';
+import { useState, useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import WalletScreen from '../screens/WalletScreen';
+import MarketsScreen from '../screens/MarketsScreen';
+import NftScreen from '../screens/NFTScreen';
+import SwapScreen from '../screens/SwapScreen';
+import StakeScreen from '../screens/StakeScreen';
+import AssetDetailsScreen from '../screens/AssetDetailsScreen';
+import WelcomeScreen from '../screens/WelcomeScreen';
+import SeedPhraseConfirmationScreen from '../screens/SeedPhraseConfirmationScreen';
+
+// Define valid Ionicons names for TypeScript
+type IconName =
+  | 'wallet'
+  | 'wallet-outline'
+  | 'calculator'
+  | 'calculator-outline'
+  | 'image'
+  | 'image-outline'
+  | 'repeat'
+  | 'repeat-outline'
+  | 'bar-chart'
+  | 'bar-chart-outline';
+
+// Navigation types
+export type RootStackParamList = {
+  Onboarding: undefined;
+  Main: undefined;
+  Wallet: { addresses: { ethereum: string; bitcoin: string; solana: string } };
+  CryptoDetails: { assetId: string; assetName: string };
+};
+
+export type OnboardingStackParamList = {
+  Welcome: undefined;
+  SeedPhraseConfirmation: { seedPhrase: string; addresses: { ethereum: string; bitcoin: string; solana: string } };
+  Main: undefined;
+};
+
+const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
+
+// Nested routes for the Wallet Service
+function WalletStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="CryptoDetails" component={AssetDetailsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// Main Tab Navigator
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: IconName = 'wallet-outline'; // Default icon
+
+          if (route.name === 'Wallet') {
+            iconName = focused ? 'wallet' : 'wallet-outline';
+          } else if (route.name === 'Markets') {
+            iconName = focused ? 'bar-chart' : 'bar-chart-outline';
+          } else if (route.name === 'NFT') {
+            iconName = focused ? 'image' : 'image-outline';
+          } else if (route.name === 'Swap') {
+            iconName = focused ? 'repeat' : 'repeat-outline';
+          } else if (route.name === 'Stake') {
+            iconName = focused ? 'calculator' : 'calculator-outline';
+          }
+
+          return (
+            <View style={[styles.iconContainer, { backgroundColor: focused ? '#00FF83' : '#444444' }]}>
+              <Ionicons name={iconName} size={size - 5} color={color} />
+            </View>
+          );
+        },
+        tabBarActiveTintColor: 'white',
+        tabBarInactiveTintColor: '#888',
+        tabBarStyle: {
+          backgroundColor: '#1A1A1A',
+          borderTopColor: '#333',
+          borderTopWidth: 4,
+          paddingBottom: 10,
+          paddingTop: 10,
+          height: 100,
+        },
+        tabBarLabelStyle: {
+          fontSize: 14,
+          marginTop: 20,
+          fontWeight: 'bold',
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Markets" component={MarketsScreen} />
+      <Tab.Screen name="NFT" component={NftScreen} />
+      <Tab.Screen name="Wallet" component={WalletStack} />
+      <Tab.Screen name="Swap" component={SwapScreen} />
+      <Tab.Screen name="Stake" component={StakeScreen} />
+    </Tab.Navigator>
+  );
+}
+
+// Onboarding Stack Navigator
+function OnboardingNavigator() {
+  return (
+    <OnboardingStack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Welcome" component={WelcomeScreen} />
+      <Stack.Screen name="SeedPhraseConfirmation" component={SeedPhraseConfirmationScreen} />
+      <Stack.Screen name="Main" component={MainTabs} />
+    </OnboardingStack.Navigator>
+  );
+}
+
+export default function RootNavigator() {
+  const [isWalletCreated, setIsWalletCreated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkWalletStatus = async () => {
+      try {
+        const walletCreated = await AsyncStorage.getItem('walletCreated');
+        setIsWalletCreated(walletCreated === 'true');
+      } catch (error) {
+        console.error('Error checking wallet status:', error);
+        setIsWalletCreated(false);
+      }
+    };
+    checkWalletStatus();
+  }, []);
+
+  if (isWalletCreated === null) {
+    return(
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size={"large"} color={"#00FF83"} />
+        
+      </View>
+    )
+    
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isWalletCreated ? (
+          <Stack.Screen name="Main" component={MainTabs} />
+        ) : (
+          <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+  },
+});

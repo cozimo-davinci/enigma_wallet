@@ -1,54 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 
 interface CryptoAsset {
   id: string;
-  logo: string; 
+  logo: string;
   name: string;
   price: number;
-  change: number; // Percentage change 
+  change: number;
 }
 
 const tabs = ['Trending', 'Gainers', 'New', 'Volume'];
-
-const cryptoData: { [key: string]: CryptoAsset[] } = {
-  Trending: [
-    { id: '1', logo: 'BTC', name: 'Bitcoin', price: 105000, change: 2.5 },
-    { id: '2', logo: 'ETH', name: 'Ethereum', price: 2800, change: -1.2 },
-    { id: '3', logo: 'SOL', name: 'Solana', price: 180, change: 3.8 },
-  ],
-  Gainers: [
-    { id: '4', logo: 'ADA', name: 'Cardano', price: 0.45, change: 5.1 },
-    { id: '5', logo: 'XRP', name: 'Ripple', price: 0.75, change: 4.2 },
-    { id: '6', logo: 'DOT', name: 'Polkadot', price: 6.5, change: 3.9 },
-  ],
-  New: [
-    { id: '7', logo: 'NEAR', name: 'NEAR Protocol', price: 5.2, change: 1.8 },
-    { id: '8', logo: 'AVAX', name: 'Avalanche', price: 35, change: -0.5 },
-    { id: '9', logo: 'LUNA', name: 'Terra', price: 0.6, change: 2.0 },
-  ],
-  Volume: [
-    { id: '10', logo: 'BNB', name: 'Binance Coin', price: 550, change: 1.5 },
-    { id: '11', logo: 'DOGE', name: 'Dogecoin', price: 0.15, change: -2.3 },
-    { id: '12', logo: 'SHIB', name: 'Shiba Inu', price: 0.00002, change: 4.7 },
-  ],
-};
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'Wallet'>;
 
 const CryptoAssetsPrices = () => {
   const [activeTab, setActiveTab] = useState('Trending');
+  const [cryptoData, setCryptoData] = useState<{ [key: string]: CryptoAsset[] }>({
+    Trending: [],
+    Gainers: [],
+    New: [],
+    Volume: [],
+  });
   const navigation = useNavigation<NavigationProp>();
 
-  const renderCryptoItem = ({ item }: { item: CryptoAsset }) => {
-    // Custom price formatting based on value
-    const formattedPrice = item.price < 1
-      ? `$${item.price.toFixed(6)}` // Use 6 decimal places for values < 1
-      : `$${item.price.toLocaleString()}`; // Use locale string for larger values
+  useEffect(() => {
+    const fetchMarketData = async () => {
+      try {
+        // Check cached data
+        const cachedData = await AsyncStorage.getItem('cryptoMarketData');
+        const cachedTimestamp = await AsyncStorage.getItem('cryptoMarketDataTimestamp');
+        const now = Date.now();
+        const cacheValid = cachedTimestamp && now - parseInt(cachedTimestamp) < 5 * 60 * 1000; // 5 minutes
 
+        if (cachedData && cacheValid) {
+          setCryptoData(JSON.parse(cachedData));
+          return;
+        }
+
+        // Fetch from CoinGecko
+        const response = await axios.get(
+          'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,cardano,ripple,polkadot,near-protocol,avalanche-2,terra-luna,binancecoin,dogecoin,shiba-inu&order=market_cap_desc&per_page=100&page=1&sparkline=false'
+        );
+
+        const data = response.data;
+        const mappedData: CryptoAsset[] = data.map((coin: any) => ({
+          id: coin.id,
+          logo: coin.symbol.toUpperCase(),
+          name: coin.name,
+          price: coin.current_price,
+          change: coin.price_change_percentage_24h,
+        }));
+
+        // Categorize data (simplified for demo)
+        const newData = {
+          Trending: mappedData.slice(0, 3), // BTC, ETH, SOL
+          Gainers: mappedData.filter((coin) => coin.change > 0).slice(0, 3), // Top gainers
+          New: mappedData.slice(6, 9), // NEAR, AVAX, LUNA
+          Volume: mappedData.slice(9, 12), // BNB, DOGE, SHIB
+        };
+
+        setCryptoData(newData);
+        await AsyncStorage.setItem('cryptoMarketData', JSON.stringify(newData));
+        await AsyncStorage.setItem('cryptoMarketDataTimestamp', now.toString());
+      } catch (error) {
+        console.error('Error fetching market data:', error);
+      }
+    };
+    fetchMarketData();
+  }, []);
+
+  const renderCryptoItem = ({ item }: { item: CryptoAsset }) => {
+    const formattedPrice = item.price < 1 ? `$${item.price.toFixed(6)}` : `$${item.price.toLocaleString()}`;
     return (
       <TouchableOpacity
         style={styles.cryptoCard}
@@ -60,7 +87,7 @@ const CryptoAssetsPrices = () => {
         <View style={styles.assetInfo}>
           <Text style={styles.assetName}>{item.name}</Text>
           <Text style={[styles.changeText, { color: item.change >= 0 ? '#00FF83' : '#FF4444' }]}>
-            {item.change >= 0 ? '+' : ''}{item.change}%
+            {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
           </Text>
         </View>
         <Text style={styles.priceText}>{formattedPrice}</Text>
@@ -70,7 +97,6 @@ const CryptoAssetsPrices = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header with Tabs */}
       <View style={styles.tabHeader}>
         {tabs.map((tab) => (
           <TouchableOpacity
@@ -82,8 +108,6 @@ const CryptoAssetsPrices = () => {
           </TouchableOpacity>
         ))}
       </View>
-
-      {/* Scrollable List */}
       <FlatList
         data={cryptoData[activeTab]}
         renderItem={renderCryptoItem}
@@ -94,8 +118,6 @@ const CryptoAssetsPrices = () => {
     </View>
   );
 };
-
-export default CryptoAssetsPrices;
 
 const styles = StyleSheet.create({
   container: {
@@ -137,7 +159,7 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
   list: {
-    maxHeight: 300, // Limit height to make it scrollable
+    maxHeight: 300,
   },
   cryptoCard: {
     flexDirection: 'row',
@@ -186,3 +208,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+export default CryptoAssetsPrices;
