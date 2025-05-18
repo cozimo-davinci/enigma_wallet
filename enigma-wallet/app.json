@@ -1,5 +1,6 @@
 {
   "expo": {
+    "scheme": "enigma-wallet",
     "name": "enigma-wallet",
     "slug": "enigma-wallet",
     "version": "1.0.0",

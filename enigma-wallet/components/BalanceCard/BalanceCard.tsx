@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 import * as Clipboard from 'expo-clipboard';
+import Toast from 'react-native-toast-message';
 
 interface ButtonProps {
   iconName: string;
@@ -19,20 +21,69 @@ const BalanceCard = () => {
   useEffect(() => {
     const loadAddresses = async () => {
       try {
-        const storedAddresses = await AsyncStorage.getItem('walletAddresses');
-        if (storedAddresses) {
-          setAddresses(JSON.parse(storedAddresses));
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in again.');
         }
-      } catch (error) {
+
+        const response = await axios.get('http://192.168.68.110:7777/api/profile', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const { walletAddresses } = response.data;
+        if (walletAddresses) {
+          setAddresses(walletAddresses);
+        } else {
+          Toast.show({
+            type: 'error',
+            text1: 'Error',
+            text2: 'No wallet addresses found. Please complete onboarding.',
+            text1Style: { fontSize: 18, fontWeight: 'bold' },
+            text2Style: { fontSize: 16 },
+            position: 'top',
+            visibilityTime: 4000,
+          });
+        }
+      } catch (error: any) {
         console.error('Error loading addresses:', error);
+        const errorMessage = error.response?.data?.error || error.message || 'Failed to load wallet addresses.';
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: errorMessage,
+          text1Style: { fontSize: 18, fontWeight: 'bold' },
+          text2Style: { fontSize: 16 },
+          position: 'top',
+          visibilityTime: 4000,
+        });
       }
     };
     loadAddresses();
   }, []);
 
   const copyToClipboard = async (address: string) => {
-    await Clipboard.setStringAsync(address);
-    Alert.alert('Copied', 'Address copied to clipboard');
+    if (address && address !== 'Loading...') {
+      await Clipboard.setStringAsync(address);
+      Toast.show({
+        type: 'success',
+        text1: 'Copied',
+        text2: 'Address copied to clipboard',
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
+    } else {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'No address available to copy.',
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
+    }
   };
 
   const buttons: ButtonProps[] = [
@@ -155,7 +206,7 @@ const styles = StyleSheet.create({
   dropdownWrapper: {
     width: '50%',
     marginBottom: 15,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   dropdownContainer: {
     flexDirection: 'row',
@@ -208,7 +259,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 5,
-    alignSelf: 'flex-start'
+    alignSelf: 'flex-start',
   },
   addressRow: {
     flexDirection: 'row',

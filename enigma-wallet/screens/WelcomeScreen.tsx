@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../navigation/RootNavigator';
 import { FontAwesome5 } from '@expo/vector-icons';
+import Toast from 'react-native-toast-message';
 
 type NavigationProp = NativeStackNavigationProp<OnboardingStackParamList, 'Welcome'>;
 
@@ -16,15 +17,33 @@ const WelcomeScreen: React.FC = () => {
 
   const createWallet = async () => {
     try {
-      const response = await axios.post('http://192.168.68.110:7777/api/wallet/create');
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+
+      const response = await axios.post('http://192.168.68.110:7777/api/wallet/create', {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const { seedPhrase, addresses } = response.data;
       console.log('Wallet created:', response.data);
       setSeedPhrase(seedPhrase);
       setAddresses(addresses);
-      await AsyncStorage.setItem('walletCreated', 'true');
-      await AsyncStorage.setItem('walletAddresses', JSON.stringify(addresses));
-    } catch (error) {
-      Alert.alert('Error', 'Failed to create wallet. Please try again.');
+      // Temporarily store seedPhrase in AsyncStorage for confirmation
+      await AsyncStorage.setItem('seedPhrase', seedPhrase);
+      // Set walletCreated to 'false' until confirmation
+      await AsyncStorage.setItem('walletCreated', 'false');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to create wallet. Please try again.';
+      Toast.show({
+        type: 'error',
+        text1: 'Wallet Creation Failed',
+        text2: errorMessage,
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
       console.error('Error creating wallet:', error);
     }
   };
@@ -33,7 +52,15 @@ const WelcomeScreen: React.FC = () => {
     if (seedPhrase && addresses) {
       navigation.navigate('SeedPhraseConfirmation', { seedPhrase, addresses });
     } else {
-      Alert.alert('Error', 'Wallet data is not ready. Please try creating the wallet again.');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Wallet data is not ready. Please try creating the wallet again.',
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
     }
   };
 
@@ -146,7 +173,7 @@ const styles = StyleSheet.create({
   seedWord: {
     fontSize: 16,
     color: '#FFF',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   button: {
     backgroundColor: '#00FF83',

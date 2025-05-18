@@ -1,15 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../navigation/RootNavigator';
+import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type NavigationProp = NativeStackNavigationProp<OnboardingStackParamList, 'SeedPhraseConfirmation'>;
 
 const SeedPhraseConfirmationScreen: React.FC = () => {
   const route = useRoute();
   const navigation = useNavigation<NavigationProp>();
-  const { seedPhrase, addresses } = route.params as { seedPhrase: string; addresses: { ethereum: string; bitcoin: string; solana: string } };
+  const params = route.params as { seedPhrase: string; addresses: { ethereum: string; bitcoin: string; solana: string } } | undefined;
+  
+  if (!params?.seedPhrase || !params?.addresses) {
+    Toast.show({
+      type: 'error',
+      text1: 'Error',
+      text2: 'Invalid wallet data. Please start over.',
+      text1Style: { fontSize: 18, fontWeight: 'bold' },
+      text2Style: { fontSize: 16 },
+      position: 'top',
+      visibilityTime: 4000,
+      onShow: () => navigation.navigate('Welcome'),
+    });
+    return null;
+  }
+
+  const { seedPhrase, addresses } = params;
   const originalWords = seedPhrase.split(' ');
   const [shuffledWords, setShuffledWords] = useState<string[]>([]);
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
@@ -29,11 +47,47 @@ const SeedPhraseConfirmationScreen: React.FC = () => {
     setShuffledWords([...shuffledWords, word]);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (selectedWords.join(' ') === seedPhrase) {
-      navigation.navigate('Main');
+      try {
+        await AsyncStorage.setItem('walletCreated', 'true');
+        try {
+          await AsyncStorage.removeItem('seedPhrase');
+          console.log('Seed phrase removed from AsyncStorage');
+        } catch (removeError) {
+          console.error('Failed to remove seedPhrase from AsyncStorage:', removeError);
+        }
+        Toast.show({
+          type: 'success',
+          text1: 'Success',
+          text2: 'Seed phrase confirmed! Your wallet is ready.',
+          text1Style: { fontSize: 18, fontWeight: 'bold' },
+          text2Style: { fontSize: 16 },
+          position: 'top',
+          visibilityTime: 4000,
+        });
+        navigation.navigate('Main');
+      } catch (error: any) {
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: error.message || 'Failed to confirm wallet.',
+          text1Style: { fontSize: 18, fontWeight: 'bold' },
+          text2Style: { fontSize: 16 },
+          position: 'top',
+          visibilityTime: 4000,
+        });
+      }
     } else {
-      Alert.alert('Error', 'Seed phrase is incorrect. Please try again.');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Seed phrase is incorrect. Please try again.',
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
       setSelectedWords([]);
       setShuffledWords([...originalWords].sort(() => Math.random() - 0.5));
     }

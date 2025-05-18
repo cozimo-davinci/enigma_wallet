@@ -1,44 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BalanceCard from '../components/BalanceCard/BalanceCard';
 import CryptoAssetsPrices from '../components/CryptoAssets/CryptoAssetsPrices';
+import Toast from 'react-native-toast-message';
 
 export default function WalletScreen() {
-  const [addresses, setAddresses] = useState<{ ethereum: string; bitcoin: string; solana: string } | null>(null);
-
-  useEffect(() => {
-    const loadAddresses = async () => {
-      try {
-        const storedAddresses = await AsyncStorage.getItem('walletAddresses');
-        if (storedAddresses) {
-          setAddresses(JSON.parse(storedAddresses));
-        }
-      } catch (error) {
-        console.error('Error loading addresses:', error);
-      }
-    };
-    loadAddresses();
-  }, []);
+  
   const clearAsyncStorage = async () => {
     try {
       await AsyncStorage.clear();
-      Alert.alert('Success', 'AsyncStorage cleared. Restart the app to reset the onboarding flow.');
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'AsyncStorage cleared. Restart the app to reset the onboarding flow.',
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear AsyncStorage.');
       console.error('Error clearing AsyncStorage:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to clear AsyncStorage.',
+        text1Style: { fontSize: 18, fontWeight: 'bold' },
+        text2Style: { fontSize: 16 },
+        position: 'top',
+        visibilityTime: 4000,
+      });
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity style={{backgroundColor: 'black', borderColor: 'white', borderWidth: 2}}>
+        <TouchableOpacity style={{ backgroundColor: 'black', borderColor: 'white', borderWidth: 2 }}>
           <Text style={styles.title} onPress={clearAsyncStorage}>Clear AsyncStorage</Text>
         </TouchableOpacity>
         <View style={styles.contentWrapper}>
-         
           <BalanceCard />
           <CryptoAssetsPrices />
         </View>
@@ -66,25 +68,5 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontWeight: 'bold',
     textAlign: 'center',
-  },
-  addressContainer: {
-    backgroundColor: '#2A2A2A',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#444444',
-  },
-  addressLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFF',
-    marginTop: 10,
-  },
-  addressText: {
-    fontSize: 14,
-    color: '#00FF83',
-    marginBottom: 10,
-    // wordBreak: 'break-all',
   },
 });

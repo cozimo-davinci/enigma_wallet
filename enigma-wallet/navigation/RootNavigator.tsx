@@ -14,6 +14,9 @@ import StakeScreen from '../screens/StakeScreen';
 import AssetDetailsScreen from '../screens/AssetDetailsScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import SeedPhraseConfirmationScreen from '../screens/SeedPhraseConfirmationScreen';
+import RegistrationScreen from '../screens/RegistrationScreen';
+import LoginScreen from '../screens/LoginScreen';
+import AuthContext from './AuthContext';
 
 // Define valid Ionicons names for TypeScript
 type IconName =
@@ -30,6 +33,8 @@ type IconName =
 
 // Navigation types
 export type RootStackParamList = {
+  Registration: undefined;
+  Login: undefined;
   Onboarding: undefined;
   Main: undefined;
   Wallet: { addresses: { ethereum: string; bitcoin: string; solana: string } };
@@ -60,8 +65,8 @@ function WalletStack() {
 function MainTabs() {
   return (
     <Tab.Navigator
-    initialRouteName='Wallet'  
-    screenOptions={({ route }) => ({
+      initialRouteName="Wallet"
+      screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: IconName = 'wallet-outline'; // Default icon
 
@@ -122,41 +127,73 @@ function OnboardingNavigator() {
 }
 
 export default function RootNavigator() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isWalletCreated, setIsWalletCreated] = useState<boolean | null>(null);
 
+  const setAuthState = (authenticated: boolean, walletCreated: boolean | null) => {
+    setIsAuthenticated(authenticated);
+    setIsWalletCreated(walletCreated);
+  };
+
   useEffect(() => {
-    const checkWalletStatus = async () => {
+    const checkAuthAndWalletStatus = async () => {
       try {
-        const walletCreated = await AsyncStorage.getItem('walletCreated');
-        setIsWalletCreated(walletCreated === 'true');
+        // Check if token exists
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          setAuthState(false, null);
+          return;
+        }
+
+        // Verify token and get profile
+        try {
+          const response = await fetch('http://192.168.68.110:7777/api/profile', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) {
+            throw new Error('Invalid token');
+          }
+          const profile = await response.json();
+          setAuthState(true, !!profile?.walletAddresses);
+        } catch (error) {
+          console.error('Error fetching profile:', error);
+          setAuthState(false, null);
+          await AsyncStorage.removeItem('token');
+        }
       } catch (error) {
-        console.error('Error checking wallet status:', error);
-        setIsWalletCreated(false);
+        console.error('Error checking auth status:', error);
+        setAuthState(false, null);
       }
     };
-    checkWalletStatus();
+
+    checkAuthAndWalletStatus();
   }, []);
 
-  if (isWalletCreated === null) {
-    return(
+  if (isAuthenticated === null || (isAuthenticated && isWalletCreated === null)) {
+    return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size={"large"} color={"#00FF83"} />
-        
+        <ActivityIndicator size="large" color="#00FF83" />
       </View>
-    )
-    
+    );
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isWalletCreated ? (
-          <Stack.Screen name="Main" component={MainTabs} />
-        ) : (
-          <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <AuthContext.Provider value={{ setAuthState }}>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            <>
+              <Stack.Screen name="Registration" component={RegistrationScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+            </>
+          ) : isWalletCreated ? (
+            <Stack.Screen name="Main" component={MainTabs} />
+          ) : (
+            <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthContext.Provider>
   );
 }
 
