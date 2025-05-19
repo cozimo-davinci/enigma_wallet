@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { getMarketData, getTrendingCoins, CryptoAsset as ApiCryptoAsset } from '../../external_api/externalAPI';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 
 interface CryptoAsset {
   id: string;
-  logo: string;
+  symbol: string;
+  logo: string; // Image URL from API
   name: string;
   price: number;
   change: number;
 }
 
-const tabs = ['Trending', 'Gainers', 'New', 'Volume'];
+const tabs = ['Trending', 'Gainers', 'Losers', 'Search'];
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'Wallet'>;
 
@@ -23,66 +23,83 @@ const CryptoAssetsPrices = () => {
   const [cryptoData, setCryptoData] = useState<{ [key: string]: CryptoAsset[] }>({
     Trending: [],
     Gainers: [],
-    New: [],
-    Volume: [],
+    Losers: [],
   });
+  const [allCoins, setAllCoins] = useState<CryptoAsset[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<CryptoAsset[]>([]);
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
   const navigation = useNavigation<NavigationProp>();
 
+  const fetchData = async () => {
+    const marketData = await getMarketData();
+    const trendingIds = await getTrendingCoins();
+
+    // Map API data to component's CryptoAsset interface
+    const mappedData: CryptoAsset[] = marketData.map((coin: ApiCryptoAsset) => ({
+      id: coin.id,
+      symbol: coin.symbol,
+      logo: coin.image, // Use image URL from API
+      name: coin.name,
+      price: coin.current_price,
+      change: coin.price_change_percentage_24h || 0,
+    }));
+
+    // Categorize data
+    const trendingCoins = mappedData.filter((coin) => trendingIds.includes(coin.id));
+    const gainers = [...mappedData]
+      .sort((a, b) => b.change - a.change)
+      .slice(0, 50); // Top 50 gainers
+    const losers = [...mappedData]
+      .sort((a, b) => a.change - b.change)
+      .slice(0, 50); // Top 50 losers
+
+    setCryptoData({
+      Trending: trendingCoins,
+      Gainers: gainers,
+      Losers: losers,
+    });
+    setAllCoins(mappedData); // Store all coins for search functionality
+  };
+
   useEffect(() => {
-    const fetchMarketData = async () => {
-      try {
-        // Check cached data
-        const cachedData = await AsyncStorage.getItem('cryptoMarketData');
-        const cachedTimestamp = await AsyncStorage.getItem('cryptoMarketDataTimestamp');
-        const now = Date.now();
-        const cacheValid = cachedTimestamp && now - parseInt(cachedTimestamp) < 5 * 60 * 1000; // 5 minutes
-
-        if (cachedData && cacheValid) {
-          setCryptoData(JSON.parse(cachedData));
-          return;
-        }
-
-        // Fetch from CoinGecko
-        const response = await axios.get(
-          'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,cardano,ripple,polkadot,near-protocol,avalanche-2,terra-luna,binancecoin,dogecoin,shiba-inu&order=market_cap_desc&per_page=100&page=1&sparkline=false'
-        );
-
-        const data = response.data;
-        const mappedData: CryptoAsset[] = data.map((coin: any) => ({
-          id: coin.id,
-          logo: coin.symbol.toUpperCase(),
-          name: coin.name,
-          price: coin.current_price,
-          change: coin.price_change_percentage_24h,
-        }));
-
-        // Categorize data (simplified for demo)
-        const newData = {
-          Trending: mappedData.slice(0, 3), // BTC, ETH, SOL
-          Gainers: mappedData.filter((coin) => coin.change > 0).slice(0, 3), // Top gainers
-          New: mappedData.slice(6, 9), // NEAR, AVAX, LUNA
-          Volume: mappedData.slice(9, 12), // BNB, DOGE, SHIB
-        };
-
-        setCryptoData(newData);
-        await AsyncStorage.setItem('cryptoMarketData', JSON.stringify(newData));
-        await AsyncStorage.setItem('cryptoMarketDataTimestamp', now.toString());
-      } catch (error) {
-        console.error('Error fetching market data:', error);
-      }
-    };
-    fetchMarketData();
+    fetchData();
+    const interval = setInterval(fetchData, 60000); // Update every 60 seconds
+    return () => clearInterval(interval);
   }, []);
 
-  const renderCryptoItem = ({ item }: { item: CryptoAsset }) => {
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim() === '') {
+      setSearchResults([]);
+    } else {
+      const filtered = allCoins.filter((coin) =>
+        coin.symbol.toLowerCase().includes(query.toLowerCase()) ||
+        coin.name.toLowerCase().includes(query.toLowerCase())
+      );
+      setSearchResults(filtered.slice(0, 10)); // Limit to 10 results
+    }
+  };
+
+  const getPaginatedData = (data: CryptoAsset[]) => {
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const totalPages = (data: CryptoAsset[]) => Math.ceil(data.length / itemsPerPage);
+
+  const renderCryptoItem = (item: CryptoAsset) => {
     const formattedPrice = item.price < 1 ? `$${item.price.toFixed(6)}` : `$${item.price.toLocaleString()}`;
     return (
       <TouchableOpacity
+        key={item.id}
         style={styles.cryptoCard}
         onPress={() => navigation.navigate('CryptoDetails', { assetId: item.id, assetName: item.name })}
       >
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>{item.logo}</Text>
+          <Image source={{ uri: item.logo }} style={styles.logoImage} />
         </View>
         <View style={styles.assetInfo}>
           <Text style={styles.assetName}>{item.name}</Text>
@@ -102,19 +119,58 @@ const CryptoAssetsPrices = () => {
           <TouchableOpacity
             key={tab}
             style={[styles.tabButton, activeTab === tab ? styles.activeTab : null]}
-            onPress={() => setActiveTab(tab)}
+            onPress={() => {
+              setActiveTab(tab);
+              if (tab !== 'Search') {
+                setPage(1); // Reset page when switching tabs, except for Search
+              }
+            }}
           >
             <Text style={[styles.tabText, activeTab === tab ? styles.activeTabText : null]}>{tab}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <FlatList
-        data={cryptoData[activeTab]}
-        renderItem={renderCryptoItem}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
-        showsVerticalScrollIndicator={false}
-      />
+      {activeTab === 'Search' ? (
+        <View>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by symbol or name"
+            value={searchQuery}
+            onChangeText={handleSearch}
+          />
+          <View style={styles.listContainer}>
+            {searchResults.map((item) => renderCryptoItem(item))}
+          </View>
+        </View>
+      ) : (
+        <>
+          <View style={styles.listContainer}>
+            {getPaginatedData(cryptoData[activeTab]).map((item) => renderCryptoItem(item))}
+          </View>
+          <View style={styles.pagination}>
+            <TouchableOpacity
+              style={[styles.pageButton, page === 1 && styles.disabledButton]}
+              onPress={() => setPage((prev) => Math.max(prev - 1, 1))}
+              disabled={page === 1}
+            >
+              <Text style={styles.pageButtonText}>Previous</Text>
+            </TouchableOpacity>
+            <Text style={styles.pageText}>
+              Page {page} of {totalPages(cryptoData[activeTab])}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.pageButton,
+                page === totalPages(cryptoData[activeTab]) && styles.disabledButton,
+              ]}
+              onPress={() => setPage((prev) => Math.min(prev + 1, totalPages(cryptoData[activeTab])))}
+              disabled={page === totalPages(cryptoData[activeTab])}
+            >
+              <Text style={styles.pageButtonText}>Next</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
     </View>
   );
 };
@@ -140,6 +196,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     marginBottom: 15,
     gap: 2.5,
+    alignItems: 'center',
+    alignSelf: 'center'
   },
   tabButton: {
     paddingVertical: 8,
@@ -158,8 +216,8 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: '#FFF',
   },
-  list: {
-    maxHeight: 300,
+  listContainer: {
+    // No maxHeight here to allow dynamic sizing
   },
   cryptoCard: {
     flexDirection: 'row',
@@ -185,10 +243,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
-  logoText: {
-    color: '#00FF83',
-    fontSize: 16,
-    fontWeight: 'bold',
+  logoImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 20,
   },
   assetInfo: {
     flex: 1,
@@ -206,6 +264,50 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  pagination: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  pageButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  pageButtonText: {
+    color: '#FFF',
+    fontSize: 14,
+  },
+  pageText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+    backgroundColor: '#1A1A1A',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  searchInput: {
+    backgroundColor: '#FFF',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 10,
+    color: '#1A1A1A',
+    fontSize: 16,
+    fontWeight: 'bold',
+    borderWidth: 2,
+    borderColor: '#1A1A1A',
+    shadowColor: '#535956',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.7,
+    shadowRadius: 2,
+    elevation: 3,
   },
 });
 

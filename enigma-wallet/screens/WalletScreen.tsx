@@ -37,9 +37,9 @@ export default function WalletScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity style={{ backgroundColor: 'black', borderColor: 'white', borderWidth: 2 }}>
+        {/* <TouchableOpacity style={{ backgroundColor: 'black', borderColor: 'white', borderWidth: 2 }}>
           <Text style={styles.title} onPress={clearAsyncStorage}>Clear AsyncStorage</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <View style={styles.contentWrapper}>
           <BalanceCard />
           <CryptoAssetsPrices />
