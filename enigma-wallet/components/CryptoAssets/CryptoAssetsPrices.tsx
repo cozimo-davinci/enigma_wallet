@@ -5,10 +5,15 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { getMarketData, getTrendingCoins, CryptoAsset as ApiCryptoAsset } from '../../external_api/externalAPI';
 import { RootStackParamList } from '../../navigation/RootNavigator';
 
+// Define the props interface
+interface CryptoAssetsPricesProps {
+  onPageChange: () => void;
+}
+
 interface CryptoAsset {
   id: string;
   symbol: string;
-  logo: string; // Image URL from API
+  logo: string;
   name: string;
   price: number;
   change: number;
@@ -18,7 +23,8 @@ const tabs = ['Trending', 'Gainers', 'Losers', 'Search'];
 
 type NavigationProp = StackNavigationProp<RootStackParamList, 'Wallet'>;
 
-const CryptoAssetsPrices = () => {
+// Update the component to accept props
+const CryptoAssetsPrices: React.FC<CryptoAssetsPricesProps> = ({ onPageChange }) => {
   const [activeTab, setActiveTab] = useState('Trending');
   const [cryptoData, setCryptoData] = useState<{ [key: string]: CryptoAsset[] }>({
     Trending: [],
@@ -36,49 +42,51 @@ const CryptoAssetsPrices = () => {
     const marketData = await getMarketData();
     const trendingIds = await getTrendingCoins();
 
-    // Map API data to component's CryptoAsset interface
     const mappedData: CryptoAsset[] = marketData.map((coin: ApiCryptoAsset) => ({
       id: coin.id,
       symbol: coin.symbol,
-      logo: coin.image, // Use image URL from API
+      logo: coin.image,
       name: coin.name,
       price: coin.current_price,
       change: coin.price_change_percentage_24h || 0,
     }));
 
-    // Categorize data
     const trendingCoins = mappedData.filter((coin) => trendingIds.includes(coin.id));
-    const gainers = [...mappedData]
-      .sort((a, b) => b.change - a.change)
-      .slice(0, 50); // Top 50 gainers
-    const losers = [...mappedData]
-      .sort((a, b) => a.change - b.change)
-      .slice(0, 50); // Top 50 losers
+    const gainers = [...mappedData].sort((a, b) => b.change - a.change).slice(0, 50);
+    const losers = [...mappedData].sort((a, b) => a.change - b.change).slice(0, 50);
 
     setCryptoData({
       Trending: trendingCoins,
       Gainers: gainers,
       Losers: losers,
     });
-    setAllCoins(mappedData); // Store all coins for search functionality
+    setAllCoins(mappedData);
   };
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000); // Update every 60 seconds
+    const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Add useEffect to trigger scroll to top when page changes
+  useEffect(() => {
+    if (activeTab !== 'Search') {
+      onPageChange(); // Call onPageChange only for paginated tabs
+    }
+  }, [page, activeTab, onPageChange]);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (query.trim() === '') {
       setSearchResults([]);
     } else {
-      const filtered = allCoins.filter((coin) =>
-        coin.symbol.toLowerCase().includes(query.toLowerCase()) ||
-        coin.name.toLowerCase().includes(query.toLowerCase())
+      const filtered = allCoins.filter(
+        (coin) =>
+          coin.symbol.toLowerCase().includes(query.toLowerCase()) ||
+          coin.name.toLowerCase().includes(query.toLowerCase())
       );
-      setSearchResults(filtered.slice(0, 10)); // Limit to 10 results
+      setSearchResults(filtered.slice(0, 10));
     }
   };
 
@@ -122,7 +130,7 @@ const CryptoAssetsPrices = () => {
             onPress={() => {
               setActiveTab(tab);
               if (tab !== 'Search') {
-                setPage(1); // Reset page when switching tabs, except for Search
+                setPage(1);
               }
             }}
           >
@@ -175,6 +183,7 @@ const CryptoAssetsPrices = () => {
   );
 };
 
+// Styles remain unchanged
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#00FF83',
@@ -197,7 +206,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     gap: 2.5,
     alignItems: 'center',
-    alignSelf: 'center'
+    alignSelf: 'center',
   },
   tabButton: {
     paddingVertical: 8,

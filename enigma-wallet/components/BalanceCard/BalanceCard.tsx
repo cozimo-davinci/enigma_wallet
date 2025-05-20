@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
@@ -12,12 +12,52 @@ interface ButtonProps {
   onPress: () => void;
 }
 
+interface BalanceResponse {
+  nativeBalance: string;
+  tokens: Array<{
+    tokenAddress: string;
+    name?: string;
+    symbol?: string;
+    balance: string;
+    usdValue?: number;
+  }>;
+}
+
+interface CoinPrice {
+  usd: number;
+}
+
 const BalanceCard = () => {
   const [addresses, setAddresses] = useState<{ ethereum: string; bitcoin: string; solana: string } | null>(null);
   const [selectedNetwork, setSelectedNetwork] = useState<'ethereum' | 'bitcoin' | 'solana'>('ethereum');
-  const [balance, setBalance] = useState<number>(0); // Mock balance; replace with API data later
+  const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
+  const [totalUsdBalance, setTotalUsdBalance] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  // CoinGecko ID mapping for common tokens
+  const getCoinGeckoId = (symbol: string | undefined): string | null => {
+    if (!symbol) return null;
+    const symbolLower = symbol.toLowerCase();
+    const mapping: { [key: string]: string } = {
+      usdt: 'tether',
+      usdc: 'usd-coin',
+      dai: 'dai',
+      weth: 'weth',
+      uni: 'uniswap',
+      link: 'chainlink',
+      aave: 'aave',
+      shib: 'shiba-inu',
+      matic: 'matic-network',
+      // Solana SPL tokens (add more as needed)
+      srm: 'serum',
+      ray: 'raydium',
+      // Add more tokens based on your use case
+    };
+    return mapping[symbolLower] || null;
+  };
+
+  // Fetch wallet addresses from /api/profile
   useEffect(() => {
     const loadAddresses = async () => {
       try {
@@ -60,6 +100,88 @@ const BalanceCard = () => {
     };
     loadAddresses();
   }, []);
+
+  // Fetch balance and USD prices when network or addresses change
+  useEffect(() => {
+    const fetchBalanceAndPrices = async () => {
+      if (!addresses || !addresses[selectedNetwork]) return;
+
+      setLoading(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) {
+          throw new Error('No authentication token found.');
+        }
+
+        // Fetch balance from backend
+        const balanceResponse = await axios.post(
+          'http://192.168.68.110:7777/api/blockchain/balance',
+          {
+            blockchain: selectedNetwork,
+            address: addresses[selectedNetwork],
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        const balanceData: BalanceResponse = balanceResponse.data;
+
+        // Fetch USD prices from CoinGecko
+        const nativeCoinId = {
+          ethereum: 'ethereum',
+          bitcoin: 'bitcoin',
+          solana: 'solana',
+        }[selectedNetwork];
+
+        const tokenIds = balanceData.tokens
+          .map((token) => getCoinGeckoId(token.symbol))
+          .filter((id) => id) as string[];
+
+        let priceData: { [key: string]: CoinPrice } = {};
+        if (tokenIds.length > 0 || nativeCoinId) {
+          const priceIds = [nativeCoinId, ...tokenIds].join(',');
+          const priceResponse = await axios.get(
+            `https://api.coingecko.com/api/v3/simple/price?ids=${priceIds}&vs_currencies=usd`
+          );
+          priceData = priceResponse.data;
+        }
+
+        // Calculate total USD balance
+        const nativeAmount = parseFloat(balanceData.nativeBalance.split(' ')[0]) || 0;
+        const nativeUsdPrice = priceData[nativeCoinId]?.usd || 0;
+        let totalUsd = nativeAmount * nativeUsdPrice;
+
+        const tokenBalances = balanceData.tokens.map((token) => {
+          const coinId = getCoinGeckoId(token.symbol);
+          const tokenUsdPrice = coinId ? priceData[coinId]?.usd || 0 : 0;
+          const tokenAmount = parseFloat(token.balance) || 0;
+          const usdValue = tokenAmount * tokenUsdPrice;
+          totalUsd += usdValue;
+          return { ...token, usdValue };
+        });
+
+        setTotalUsdBalance(totalUsd);
+        setBalanceData({ ...balanceData, tokens: tokenBalances });
+      } catch (error: any) {
+        console.error('Error fetching balance:', error);
+        const errorMessage = error.response?.data?.error || error.message || 'Failed to fetch balance.';
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: errorMessage,
+          text1Style: { fontSize: 18, fontWeight: 'bold' },
+          text2Style: { fontSize: 16 },
+          position: 'top',
+          visibilityTime: 4000,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBalanceAndPrices();
+  }, [selectedNetwork, addresses]);
 
   const copyToClipboard = async (address: string) => {
     if (address && address !== 'Loading...') {
@@ -156,15 +278,45 @@ const BalanceCard = () => {
             {selectedAddress}
           </Text>
           <TouchableOpacity onPress={() => copyToClipboard(selectedAddress)}>
-            <Ionicons name="copy-outline" size={20} color="white" style={{ backgroundColor: '#1A1A1A', padding: 5, borderRadius: 10 }} />
+            <Ionicons name="copy-outline" size={20} color="white" style={styles.copyIcon} />
           </TouchableOpacity>
         </View>
 
         {/* Balance */}
         <View style={styles.balanceContainer}>
-          <Text style={styles.balanceText}>
-            Balance: {balance} {networkNames[selectedNetwork]}
-          </Text>
+          {loading ? (
+            <ActivityIndicator size="large" color="#1A1A1A" />
+          ) : balanceData ? (
+            <>
+              <Text style={styles.balanceText}>
+                Total Balance: ${totalUsdBalance?.toFixed(2) || '0.00'} USD
+              </Text>
+              <Text style={styles.balanceText}>
+                Native: {balanceData.nativeBalance}
+              </Text>
+              {balanceData.tokens.length > 0 ? (
+                <View style={styles.tokenList}>
+                  <Text style={styles.tokenHeader}>Tokens:</Text>
+                  <ScrollView style={styles.tokenScroll} nestedScrollEnabled>
+                    {balanceData.tokens.map((token, index) => (
+                      <View key={index} style={styles.tokenItem}>
+                        <Text style={styles.tokenText}>
+                          {token.name || token.symbol || token.tokenAddress.slice(0, 8)}: {parseFloat(token.balance).toFixed(4)} {token.symbol || 'N/A'}
+                        </Text>
+                        <Text style={styles.tokenUsdText}>
+                          ${token.usdValue ? token.usdValue.toFixed(2) : '0.00'} USD
+                        </Text>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : (
+                <Text style={styles.tokenText}>No tokens found</Text>
+              )}
+            </>
+          ) : (
+            <Text style={styles.balanceText}>Balance: Not available</Text>
+          )}
         </View>
       </View>
 
@@ -273,6 +425,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginRight: 10,
   },
+  copyIcon: {
+    backgroundColor: '#1A1A1A',
+    padding: 5,
+    borderRadius: 10,
+  },
   balanceContainer: {
     width: '100%',
     alignItems: 'center',
@@ -281,6 +438,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#1A1A1A',
+    marginVertical: 5,
+  },
+  tokenList: {
+    width: '100%',
+    marginTop: 10,
+    maxHeight: 150, // Limit height to prevent overflow
+  },
+  tokenScroll: {
+    flexGrow: 0,
+  },
+  tokenHeader: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 5,
+  },
+  tokenItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  tokenText: {
+    fontSize: 14,
+    color: '#1A1A1A',
+  },
+  tokenUsdText: {
+    fontSize: 14,
+    color: '#1A1A1A',
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'row',
