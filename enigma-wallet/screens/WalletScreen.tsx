@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import BalanceCard from '../components/BalanceCard/BalanceCard';
-import CryptoAssetsPrices from '../components/CryptoAssets/CryptoAssetsPrices';
+// import CryptoAssetsPrices from '../components/CryptoAssets/CryptoAssetsPrices';
 import Toast from 'react-native-toast-message';
 
 export default function WalletScreen() {
@@ -48,7 +48,7 @@ export default function WalletScreen() {
       >
         <View style={styles.contentWrapper}>
           <BalanceCard />
-          <CryptoAssetsPrices onPageChange={handlePageChange} />
+          {/* <CryptoAssetsPrices onPageChange={handlePageChange} /> */}
         </View>
       </ScrollView>
     </SafeAreaView>

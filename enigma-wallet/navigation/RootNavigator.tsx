@@ -15,8 +15,10 @@ import AssetDetailsScreen from '../screens/AssetDetailsScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import SeedPhraseConfirmationScreen from '../screens/SeedPhraseConfirmationScreen';
 import RegistrationScreen from '../screens/RegistrationScreen';
+import ProfileDetails from '../screens/ProfileDetails';
 import LoginScreen from '../screens/LoginScreen';
 import AuthContext from './AuthContext';
+import Toast from 'react-native-toast-message';
 
 // Define valid Ionicons names for TypeScript
 type IconName =
@@ -39,6 +41,10 @@ export type RootStackParamList = {
   Main: undefined;
   Wallet: { addresses: { ethereum: string; bitcoin: string; solana: string } };
   CryptoDetails: { assetId: string; assetName: string };
+  Markets: undefined;
+  Welcome: undefined;
+  SeedPhraseConfirmation: { seedPhrase: string; addresses: { ethereum: string; bitcoin: string; solana: string } };
+  ProfileDetails: undefined;
 };
 
 export type OnboardingStackParamList = {
@@ -56,6 +62,16 @@ function WalletStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="ProfileDetails" component={ProfileDetails} />
+    </Stack.Navigator>
+  );
+}
+
+// Nested Routes for the Markets Service
+function MarketsStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Markets" component={MarketsScreen} />
       <Stack.Screen name="CryptoDetails" component={AssetDetailsScreen} />
     </Stack.Navigator>
   );
@@ -106,7 +122,7 @@ function MainTabs() {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Markets" component={MarketsScreen} />
+      <Tab.Screen name="Markets" component={MarketsStack} />
       <Tab.Screen name="NFT" component={NftScreen} />
       <Tab.Screen name="Wallet" component={WalletStack} />
       <Tab.Screen name="Swap" component={SwapScreen} />
@@ -156,7 +172,16 @@ export default function RootNavigator() {
           const profile = await response.json();
           setAuthState(true, !!profile?.walletAddresses);
         } catch (error) {
-          console.error('Error fetching profile:', error);
+          // console.error('Error fetching profile:', error);
+          Toast.show({
+            type: 'info',
+            text1: 'Error',
+            text2: 'Your session expired. Please log in again.',
+            text1Style: { fontSize: 18, fontWeight: 'bold' },
+            text2Style: { fontSize: 16 },
+            position: 'top',
+            visibilityTime: 4000,
+          });
           setAuthState(false, null);
           await AsyncStorage.removeItem('token');
         }
@@ -183,8 +208,9 @@ export default function RootNavigator() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
             <>
-              <Stack.Screen name="Registration" component={RegistrationScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Registration" component={RegistrationScreen} />
+              
             </>
           ) : isWalletCreated ? (
             <Stack.Screen name="Main" component={MainTabs} />

@@ -62,6 +62,33 @@ const toastConfig = {
       </Text>
     </View>
   ),
+  info: ({ text1, text2, props }: any) => (
+    <View style={{
+      width: '90%',
+      backgroundColor: '#171716',
+      padding: 20,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#00FFFF',
+      marginTop: 40,
+    }}>
+      <Text style={{
+        fontSize: props.text1Style?.fontSize || 18,
+        fontWeight: 'bold',
+        color: '#FFF',
+        marginBottom: 5,
+      }}>
+        {text1}
+      </Text>
+      <Text style={{
+        fontSize: props.text2Style?.fontSize || 16,
+        color: '#FFF',
+        flexWrap: 'wrap',
+      }}>
+        {text2}
+      </Text>
+    </View>
+  ),
 };
 export default function App() {
   return (
