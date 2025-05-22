@@ -29,11 +29,13 @@
     "hdkey": "^2.1.0",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
+    "multer": "^2.0.0",
     "node-cache": "^5.1.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.18",
     "@types/hdkey": "^2.1.0",
+    "@types/multer": "^1.4.12",
     "nodemon": "^3.1.10",
     "prisma": "^6.8.2",
     "ts-node": "^10.9.2",

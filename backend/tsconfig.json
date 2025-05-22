@@ -13,6 +13,6 @@
       "@prisma/client": ["src/generated/prisma"]
     }
   },
-  "include": ["src/**/*.ts", "src/utils/supabase.ts"],
+  "include": ["src/**/*.ts", "src/utils/supabase.ts", "types.d.ts"],
   "exclude": ["node_modules"]
 }

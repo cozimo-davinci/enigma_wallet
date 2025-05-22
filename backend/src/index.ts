@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import userAuthRouter from './routes/userAuth';
 import walletAndSeedPhraseRouter from './routes/walletAndSeedPhrase';
 import blockchainBalanceRouter from './routes/blockchainBalance';
+import profileRouter from './routes/profile';
 
 // Resolve .env path
 const envPath = path.resolve(__dirname, '../.env');
@@ -36,6 +37,7 @@ app.use(cors());
 app.use('/api', userAuthRouter);
 app.use('/api/wallet', walletAndSeedPhraseRouter);
 app.use('/api/blockchain', blockchainBalanceRouter);
+app.use('/api/profile', profileRouter)
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

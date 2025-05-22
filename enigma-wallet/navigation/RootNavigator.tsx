@@ -175,7 +175,7 @@ export default function RootNavigator() {
           // console.error('Error fetching profile:', error);
           Toast.show({
             type: 'info',
-            text1: 'Error',
+            text1: 'Warning',
             text2: 'Your session expired. Please log in again.',
             text1Style: { fontSize: 18, fontWeight: 'bold' },
             text2Style: { fontSize: 16 },
